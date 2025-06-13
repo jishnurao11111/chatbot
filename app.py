@@ -59,8 +59,7 @@ if current_link:
         df_original = load_data_from_drive(current_link)
     if df_original is not None:
         st.success("Data loaded successfully!")
-        # ----------- Your dashboard code starts here ------------------
-        # (Below is your code with minor safety checks for missing columns)
+        # ----------- Dashboard code starts here ------------------
 
         # Data Cleaning
         df_original.replace(['#DIV/0!', 'N/A', 'na', 'NA', ''], pd.NA, inplace=True)
@@ -71,7 +70,9 @@ if current_link:
 
         for col in ['discount%', 'coupon%', 'scheme%', 'margin%']:
             if col in df_original.columns:
-                df_original[col] = pd.to_numeric(df_original[col].astype(str).str.replace('%', '').str.replace(',', ''), errors='coerce')
+                df_original[col] = pd.to_numeric(
+                    df_original[col].astype(str).str.replace('%', '').str.replace(',', ''), errors='coerce'
+                )
 
         def remove_outliers_iqr(series):
             q1 = series.quantile(0.25)
@@ -149,6 +150,7 @@ if current_link:
 
         analysis_options = [
             "Monthly Revenue Trend",
+            "Day-on-Day Trend",
             "Group-wise Summary",
             "Group-wise MoM & DoD",
             "PL vs Non-PL Analysis",
@@ -174,6 +176,26 @@ if current_link:
 
             fig = None
             table_data = None
+
+            if analysis_type == "Day-on-Day Trend":
+                group_cols = [c for c in ['Store Full Name', 'City', 'Sku Sub Category'] if c in df.columns]
+                selected_group = st.selectbox("Group By (optional)", ["None"] + group_cols, key=f"group_dod_{idx}")
+                # Local filter for city (optional)
+                if 'City' in df.columns:
+                    cities = sorted(df['City'].dropna().unique())
+                    selected_cities = st.multiselect("Filter by City", cities, default=cities, key=f"cities_dod_{idx}")
+                    df = df[df['City'].isin(selected_cities)]
+                if selected_group != "None":
+                    trend = df.groupby(['Date', selected_group])[selected_metric].mean().reset_index() \
+                        if selected_metric.endswith('%') else df.groupby(['Date', selected_group])[selected_metric].sum().reset_index()
+                    fig = px.line(trend, x='Date', y=selected_metric, color=selected_group)
+                else:
+                    trend = df.groupby('Date')[selected_metric].mean().reset_index() \
+                        if selected_metric.endswith('%') else df.groupby('Date')[selected_metric].sum().reset_index()
+                    fig = px.line(trend, x='Date', y=selected_metric, markers=True)
+                st.plotly_chart(fig, use_container_width=True)
+                st.dataframe(trend, use_container_width=True)
+                return
 
             if analysis_type == "Group-wise MoM & DoD":
                 group_opts = [c for c in ['Store Full Name', 'Sku Sub Category', 'Sku Name'] if c in df.columns]
@@ -390,7 +412,7 @@ if current_link:
             analysis_type = st.sidebar.selectbox("📈 Select Analysis", analysis_options)
             with st.container():
                 analysis_block(analysis_type, df_filtered_global)
-        # ----------- Your dashboard code ends here ------------------
+        # ----------- Dashboard code ends here ------------------
     else:
         st.error("Failed to load data. Check your link and try again.")
 else:
